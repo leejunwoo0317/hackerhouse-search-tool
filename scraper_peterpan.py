@@ -80,25 +80,43 @@ def run():
         print("\n" + "="*50)
         print("Peter Pan is open in your browser.")
         print("Search for your desired area and filters.")
-        print("When the listings are loaded, come back here.")
+        print("Press Enter to extract listings.")
+        print("Type 'q' + Enter when you are done.")
         print("="*50)
-        input("\nPress Enter to extract listings...")
 
-        # wait for page to fully settle after any navigation from searching
-        page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        all_listings = []
 
-        listings = extract_listings(page)
+        while True:
+            command = input("\nPress Enter to extract  |  type 'q' to finish: ").strip().lower()
+            if command == "q":
+                break
+
+            page.wait_for_load_state("domcontentloaded")
+            time.sleep(2)
+
+            new_listings = extract_listings(page)
+            all_listings.extend(new_listings)
+
+            print(f"\nExtracted {len(new_listings)} listings this round  |  Total so far: {len(all_listings)}")
+            for i, l in enumerate(new_listings, 1):
+                print(f"  [{i}] {l['price']} | {l['address']} | {l['floor']} | {l['size']}")
+                print(f"       Link: {l['link']}")
+
+            print("\nChange filters or area in the browser, then press Enter again.")
+
         context.close()
         browser.close()
 
-        print(f"\nFound {len(listings)} listings\n")
-        for i, l in enumerate(listings, 1):
-            print(f"[{i}] {l['price']} | {l['address']} | {l['floor']} | {l['size']}")
-            print(f"     Link: {l['link']}")
-            print()
+        # remove duplicate listings by link
+        seen = set()
+        unique = []
+        for l in all_listings:
+            if l["link"] not in seen:
+                seen.add(l["link"])
+                unique.append(l)
 
-        return listings
+        print(f"\nDone. Total unique listings collected: {len(unique)}")
+        return unique
 
 
 if __name__ == "__main__":
