@@ -13,6 +13,7 @@ def inject_back_to_top():
     (function() {
         var doc = window.parent.document;
         if (doc.getElementById('back-to-top-btn')) return;
+
         var btn = doc.createElement('button');
         btn.id = 'back-to-top-btn';
         btn.innerText = '↑ Top';
@@ -26,14 +27,22 @@ def inject_back_to_top():
         btn.onmouseover = function() { this.style.background='#cc3333'; };
         btn.onmouseout  = function() { this.style.background='#ff4b4b'; };
         btn.onclick = function() {
-            var el = doc.querySelector('section.main');
-            if (el) el.scrollTo({top:0, behavior:'smooth'});
-            else window.parent.scrollTo({top:0, behavior:'smooth'});
+            // try every known Streamlit scroll container
+            var selectors = ['section.main', '.main', '.stMain',
+                             '.appview-container', '.block-container'];
+            selectors.forEach(function(sel) {
+                var el = doc.querySelector(sel);
+                if (el) { el.scrollTop = 0; }
+            });
+            // also reset window-level scroll
+            window.parent.scrollTo(0, 0);
+            doc.documentElement.scrollTop = 0;
+            doc.body.scrollTop = 0;
         };
         doc.body.appendChild(btn);
     })();
     </script>
-    """, height=0)
+    """, height=1)
 
 
 
@@ -142,12 +151,14 @@ def render_sidebar_comparison_bar(df, selected_for_compare):
         )
 
     if st.sidebar.button("↑ Top", use_container_width=True):
-        # re-inject scroll trigger into parent document
         components.html("""<script>
-            var el=window.parent.document.querySelector('section.main');
-            if(el){el.scrollTo({top:0,behavior:'smooth'});}
-            else{window.parent.scrollTo({top:0,behavior:'smooth'});}
-        </script>""", height=0)
+            var doc = window.parent.document;
+            ['section.main','.main','.stMain','.appview-container','.block-container']
+            .forEach(function(s){var e=doc.querySelector(s);if(e)e.scrollTop=0;});
+            window.parent.scrollTo(0,0);
+            doc.documentElement.scrollTop=0;
+            doc.body.scrollTop=0;
+        </script>""", height=1)
     if st.sidebar.button("Reset compare", use_container_width=True):
         reset_comparison()
         st.rerun()
