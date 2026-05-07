@@ -65,8 +65,16 @@ def extract_listings(page):
 
 def run():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        browser = p.chromium.launch(
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+        # hide automation flags from the site
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page.goto("https://www.peterpanz.com/villa", wait_until="domcontentloaded")
 
         print("\n" + "="*50)
@@ -81,6 +89,7 @@ def run():
         time.sleep(2)
 
         listings = extract_listings(page)
+        context.close()
         browser.close()
 
         print(f"\nFound {len(listings)} listings\n")
