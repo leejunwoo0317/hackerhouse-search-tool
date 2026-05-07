@@ -1,3 +1,4 @@
+import time
 from playwright.sync_api import sync_playwright
 
 
@@ -74,6 +75,10 @@ def run():
         print("When the listings are loaded, come back here.")
         print("="*50)
         input("\nPress Enter to extract listings...")
+
+        # wait for page to fully settle after any navigation from searching
+        page.wait_for_load_state("domcontentloaded")
+        time.sleep(2)
 
         listings = extract_listings(page)
         browser.close()
