@@ -46,12 +46,22 @@ def inject_back_to_top():
 
 
 
-def load_latest_csv():
+def load_data():
+    """Load CSV — from sidebar uploader first, then latest local file."""
+    uploaded = st.sidebar.file_uploader(
+        "Upload results CSV", type="csv", help="Export from scraper_peterpan.py"
+    )
+    if uploaded:
+        df = pd.read_csv(uploaded, encoding="utf-8-sig")
+        return df, uploaded.name
+
+    # fallback: load latest local CSV (when running on your own machine)
     files = sorted(glob.glob("results_*.csv"), reverse=True)
-    if not files:
-        return None, None
-    df = pd.read_csv(files[0], encoding="utf-8-sig")
-    return df, files[0]
+    if files:
+        df = pd.read_csv(files[0], encoding="utf-8-sig")
+        return df, files[0]
+
+    return None, None
 
 
 def parse_amount(value):
@@ -168,10 +178,11 @@ def main():
     inject_back_to_top()
     st.title("Hackerhouse Search")
 
-    df, filename = load_latest_csv()
+    df, filename = load_data()
 
     if df is None:
-        st.warning("No results file found. Run scraper_peterpan.py first to collect listings.")
+        st.info("Upload a results CSV file using the sidebar to get started.")
+        st.markdown("**If you are running locally:** generate a CSV first by running the scraper:")
         st.code("python scraper_peterpan.py")
         return
 
