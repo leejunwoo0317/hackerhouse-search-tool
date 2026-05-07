@@ -165,30 +165,44 @@ def main():
     filtered = filtered[filtered.apply(in_rent_range, axis=1)]
     filtered = filtered[filtered.apply(in_deposit_range, axis=1)]
 
-    st.markdown(f"### Results: {len(filtered)} listings")
-
     if filtered.empty:
         st.info("No listings match your filters.")
         return
 
-    # ── Listing cards ────────────────────────────────────────────
+    # ── Tabs ─────────────────────────────────────────────────────
+    # count already-checked items from session state to show in tab label
+    checked_count = sum(
+        1 for key, val in st.session_state.items()
+        if key.startswith("compare_") and val
+    )
+    tab_label = f"Compare ({checked_count})" if checked_count else "Compare"
+    tab_listings, tab_compare = st.tabs([f"Listings ({len(filtered)})", tab_label])
+
+    # ── Tab 1: Listing cards ──────────────────────────────────────
     selected_for_compare = []
-    cols_per_row = 3
-    rows = [filtered.iloc[i:i + cols_per_row] for i in range(0, len(filtered), cols_per_row)]
+    with tab_listings:
+        cols_per_row = 3
+        rows = [filtered.iloc[i:i + cols_per_row] for i in range(0, len(filtered), cols_per_row)]
 
-    for row in rows:
-        cols = st.columns(cols_per_row)
-        for col, (_, listing) in zip(cols, row.iterrows()):
-            with col:
-                checked = render_card(listing)
-                if checked:
-                    selected_for_compare.append(listing)
+        for row in rows:
+            cols = st.columns(cols_per_row)
+            for col, (_, listing) in zip(cols, row.iterrows()):
+                with col:
+                    checked = render_card(listing)
+                    if checked:
+                        selected_for_compare.append(listing)
 
-    # ── Comparison section ───────────────────────────────────────
-    if len(selected_for_compare) >= 2:
-        render_comparison(selected_for_compare)
-    elif len(selected_for_compare) == 1:
-        st.info("Select at least one more listing to compare.")
+        if checked_count:
+            st.info(f"{checked_count} listing(s) selected — click the **{tab_label}** tab to compare.")
+
+    # ── Tab 2: Comparison ─────────────────────────────────────────
+    with tab_compare:
+        if len(selected_for_compare) >= 2:
+            render_comparison(selected_for_compare)
+        elif len(selected_for_compare) == 1:
+            st.info("Select at least one more listing in the Listings tab to compare.")
+        else:
+            st.info("Go to the Listings tab, check the Compare box on 2 or more listings, then come back here.")
 
 
 if __name__ == "__main__":
