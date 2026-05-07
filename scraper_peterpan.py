@@ -2,7 +2,7 @@ import time
 from playwright.sync_api import sync_playwright
 
 
-def extract_listings(page):
+def extract_listings(page, search_label=""):
     cards = page.query_selector_all("div.a-house")
     listings = []
 
@@ -10,6 +10,9 @@ def extract_listings(page):
         try:
             hidx = card.get_attribute("data-hidx") or ""
             link = f"https://www.peterpanz.com/house/{hidx}" if hidx else ""
+
+            # property type from card data attribute (e.g. 빌라/주택, 아파트)
+            property_type = card.get_attribute("data-duse-menu_category") or ""
 
             price_el = card.query_selector("div.m-content__price")
             price = price_el.inner_text().strip() if price_el else ""
@@ -23,20 +26,15 @@ def extract_listings(page):
             desc_el = card.query_selector("div.m-content__description")
             description = desc_el.inner_text().strip() if desc_el else ""
 
-            # floor and size are inside multiple div.m-content__text elements
             info_texts = card.query_selector_all("div.m-content__text")
-            floor, size, building_type = "", "", ""
+            floor, size = "", ""
             for el in info_texts:
                 text = el.inner_text().strip()
-                if "층" in text:
+                if "층" in text and not floor:
                     floor = text
-                elif "m²" in text or "m2" in text or "㎡" in text:
+                elif ("m²" in text or "m2" in text or "㎡" in text) and not size:
                     size = text
-                elif text and not building_type:
-                    building_type = text
 
-            # parse deposit and monthly rent from price string
-            # format: "월세 보증금/월세" e.g. "월세 1,000/48"
             deposit, monthly = "", ""
             if "월세" in price and "/" in price:
                 parts = price.replace("월세", "").strip().split("/")
@@ -45,13 +43,14 @@ def extract_listings(page):
                     monthly = parts[1].strip() + "만원"
 
             listings.append({
+                "search_label": search_label,
+                "property_type": property_type,
                 "price": price,
                 "deposit": deposit,
                 "monthly_rent": monthly,
                 "address": address,
                 "floor": floor,
                 "size": size,
-                "building_type": building_type,
                 "description": description,
                 "photo": photo,
                 "link": link,
@@ -87,22 +86,22 @@ def run():
         all_listings = []
 
         while True:
-            command = input("\nPress Enter to extract  |  type 'q' to finish: ").strip().lower()
-            if command == "q":
+            command = input("\nType a label for this search (e.g. 성수동, 마포구)  |  or 'q' to finish: ").strip()
+            if command.lower() == "q":
                 break
 
+            search_label = command
             page.wait_for_load_state("domcontentloaded")
             time.sleep(2)
 
-            new_listings = extract_listings(page)
+            new_listings = extract_listings(page, search_label=search_label)
             all_listings.extend(new_listings)
 
-            print(f"\nExtracted {len(new_listings)} listings this round  |  Total so far: {len(all_listings)}")
+            print(f"\nExtracted {len(new_listings)} listings from '{search_label}'  |  Total so far: {len(all_listings)}")
             for i, l in enumerate(new_listings, 1):
-                print(f"  [{i}] {l['price']} | {l['address']} | {l['floor']} | {l['size']}")
-                print(f"       Link: {l['link']}")
+                print(f"  [{i}] [{l['property_type']}] {l['price']} | {l['address']} | {l['floor']} | {l['size']}")
 
-            print("\nChange filters or area in the browser, then press Enter again.")
+            print("\nChange filters or area in the browser, then enter the next label.")
 
         context.close()
         browser.close()
