@@ -1,9 +1,35 @@
 import glob
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Hackerhouse Search", layout="wide")
+
+# floating back-to-top button — pure HTML/JS, no Streamlit rerun needed
+st.markdown("""
+<style>
+.back-to-top {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background-color: #ff4b4b;
+    color: white;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 9999;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.back-to-top:hover { background-color: #cc3333; }
+</style>
+<button class="back-to-top" onclick="
+    var el = window.parent.document.querySelector('section.main');
+    if (el) { el.scrollTo({top:0, behavior:'smooth'}); }
+    else { window.parent.scrollTo({top:0, behavior:'smooth'}); }
+">↑ Top</button>
+""", unsafe_allow_html=True)
 
 
 def load_latest_csv():
@@ -20,12 +46,6 @@ def parse_amount(value):
     except Exception:
         return None
 
-
-def scroll_to_top():
-    components.html(
-        "<script>window.parent.document.querySelector('section.main').scrollTo({top:0,behavior:'smooth'});</script>",
-        height=0
-    )
 
 
 def reset_comparison():
@@ -116,14 +136,16 @@ def render_sidebar_comparison_bar(df, selected_for_compare):
             f"  {listing.get('price', '')}  ·  {listing.get('size', '')}"
         )
 
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        if st.button("↑ Top", key="btn_top", use_container_width=True):
-            scroll_to_top()
-    with col2:
-        if st.button("Reset", key="btn_reset", use_container_width=True):
-            reset_comparison()
-            st.rerun()
+    st.sidebar.markdown("""
+<button onclick="
+    var el=window.parent.document.querySelector('section.main');
+    if(el){el.scrollTo({top:0,behavior:'smooth'});}
+    else{window.parent.scrollTo({top:0,behavior:'smooth'});}
+" style="width:48%;margin-right:2%;padding:0.4rem;background:#ff4b4b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">↑ Top</button>
+""", unsafe_allow_html=True)
+    if st.sidebar.button("Reset compare", use_container_width=True):
+        reset_comparison()
+        st.rerun()
 
 
 def main():
@@ -215,10 +237,6 @@ def main():
                 with col:
                     render_card(listing)
 
-        # back to top button at the bottom of listings
-        st.markdown("&nbsp;")
-        if st.button("↑ Back to top", key="btn_top_main"):
-            scroll_to_top()
 
     # ── Tab 2: Comparison ─────────────────────────────────────────
     with tab_compare:
