@@ -1,6 +1,7 @@
 import glob
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Hackerhouse Search", layout="wide")
 
@@ -14,15 +15,26 @@ def load_latest_csv():
 
 
 def parse_amount(value):
-    """Convert '130만원' or '3,000만원' string to integer for filtering."""
     try:
         return int(str(value).replace("만원", "").replace(",", "").strip())
     except Exception:
         return None
 
 
-def render_card(listing, show_compare_checkbox=True):
-    """Render a single listing card. Returns True if compare checkbox is checked."""
+def scroll_to_top():
+    components.html(
+        "<script>window.parent.document.querySelector('section.main').scrollTo({top:0,behavior:'smooth'});</script>",
+        height=0
+    )
+
+
+def reset_comparison():
+    for key in list(st.session_state.keys()):
+        if key.startswith("compare_"):
+            st.session_state[key] = False
+
+
+def render_card(listing):
     if pd.notna(listing.get("photo")) and listing["photo"]:
         st.image(listing["photo"], use_container_width=True)
     else:
@@ -43,47 +55,40 @@ def render_card(listing, show_compare_checkbox=True):
     if pd.notna(listing.get("link")) and listing["link"]:
         st.markdown(f"[View listing →]({listing['link']})")
 
-    checked = False
-    if show_compare_checkbox:
-        key = f"compare_{listing['link']}"
-        checked = st.checkbox("Compare", key=key)
-
+    key = f"compare_{listing['link']}"
+    checked = st.checkbox("Compare", key=key)
     st.markdown("---")
     return checked
 
 
 def render_comparison(selected):
-    """Render selected listings side by side in a comparison table."""
     st.markdown("## Side-by-Side Comparison")
 
     fields = [
-        ("Price", "price"),
-        ("Deposit", "deposit"),
-        ("Monthly rent", "monthly_rent"),
-        ("Address", "address"),
+        ("Price",         "price"),
+        ("Deposit",       "deposit"),
+        ("Monthly rent",  "monthly_rent"),
+        ("Address",       "address"),
         ("Property type", "property_type"),
-        ("Floor", "floor"),
-        ("Size", "size"),
+        ("Floor",         "floor"),
+        ("Size",          "size"),
         ("Area (search)", "search_label"),
     ]
 
-    # photos row
     photo_cols = st.columns(len(selected))
     for col, listing in zip(photo_cols, selected):
         with col:
             if pd.notna(listing.get("photo")) and listing["photo"]:
                 st.image(listing["photo"], use_container_width=True)
 
-    # data rows
     for label, field in fields:
         row_cols = st.columns([1] + [2] * len(selected))
         with row_cols[0]:
             st.markdown(f"**{label}**")
         values = [str(listing.get(field, "")) for listing in selected]
-        # highlight best monthly rent (lowest non-empty)
         amounts = [parse_amount(v) for v in values]
-        best_idx = None
         valid = [(i, a) for i, a in enumerate(amounts) if a is not None]
+        best_idx = None
         if field == "monthly_rent" and valid:
             best_idx = min(valid, key=lambda x: x[1])[0]
         if field == "size" and valid:
@@ -91,12 +96,34 @@ def render_comparison(selected):
 
         for i, (col, val) in enumerate(zip(row_cols[1:], values)):
             with col:
-                if i == best_idx:
-                    st.markdown(f"✅ **{val}**")
-                else:
-                    st.markdown(val)
+                st.markdown(f"✅ **{val}**" if i == best_idx else val)
 
     st.markdown("---")
+
+
+def render_sidebar_comparison_bar(df, selected_for_compare):
+    """Always-visible sidebar panel showing selected items."""
+    st.sidebar.markdown("---")
+    if not selected_for_compare:
+        st.sidebar.markdown("**Comparison list** — empty")
+        st.sidebar.caption("Check 'Compare' on any listing to add it here.")
+        return
+
+    st.sidebar.markdown(f"**Comparison list ({len(selected_for_compare)})**")
+    for listing in selected_for_compare:
+        st.sidebar.markdown(
+            f"- {listing.get('address', '')}  \n"
+            f"  {listing.get('price', '')}  ·  {listing.get('size', '')}"
+        )
+
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("↑ Top", key="btn_top", use_container_width=True):
+            scroll_to_top()
+    with col2:
+        if st.button("Reset", key="btn_reset", use_container_width=True):
+            reset_comparison()
+            st.rerun()
 
 
 def main():
@@ -137,10 +164,8 @@ def main():
 
     if selected_areas:
         filtered = filtered[filtered["search_label"].isin(selected_areas)]
-
     if selected_types:
         filtered = filtered[filtered["property_type"].isin(selected_types)]
-
     if selected_price_types:
         filtered = filtered[filtered["price"].apply(
             lambda x: any(pt in str(x) for pt in selected_price_types)
@@ -150,17 +175,13 @@ def main():
         if "월세" not in str(row["price"]):
             return True
         amount = parse_amount(row["monthly_rent"])
-        if amount is None:
-            return True
-        return min_rent <= amount <= max_rent
+        return True if amount is None else min_rent <= amount <= max_rent
 
     def in_deposit_range(row):
         if "월세" not in str(row["price"]) and "전세" not in str(row["price"]):
             return True
         amount = parse_amount(row["deposit"])
-        if amount is None:
-            return True
-        return min_deposit <= amount <= max_deposit
+        return True if amount is None else min_deposit <= amount <= max_deposit
 
     filtered = filtered[filtered.apply(in_rent_range, axis=1)]
     filtered = filtered[filtered.apply(in_deposit_range, axis=1)]
@@ -169,31 +190,35 @@ def main():
         st.info("No listings match your filters.")
         return
 
+    # ── Collect currently selected items ─────────────────────────
+    selected_for_compare = []
+    for _, listing in filtered.iterrows():
+        key = f"compare_{listing['link']}"
+        if st.session_state.get(key):
+            selected_for_compare.append(listing)
+
+    # ── Sidebar comparison bar (always visible) ───────────────────
+    render_sidebar_comparison_bar(df, selected_for_compare)
+
     # ── Tabs ─────────────────────────────────────────────────────
-    # count already-checked items from session state to show in tab label
-    checked_count = sum(
-        1 for key, val in st.session_state.items()
-        if key.startswith("compare_") and val
-    )
-    tab_label = f"Compare ({checked_count})" if checked_count else "Compare"
+    count = len(selected_for_compare)
+    tab_label = f"Compare ({count})" if count else "Compare"
     tab_listings, tab_compare = st.tabs([f"Listings ({len(filtered)})", tab_label])
 
     # ── Tab 1: Listing cards ──────────────────────────────────────
-    selected_for_compare = []
     with tab_listings:
         cols_per_row = 3
         rows = [filtered.iloc[i:i + cols_per_row] for i in range(0, len(filtered), cols_per_row)]
-
         for row in rows:
             cols = st.columns(cols_per_row)
             for col, (_, listing) in zip(cols, row.iterrows()):
                 with col:
-                    checked = render_card(listing)
-                    if checked:
-                        selected_for_compare.append(listing)
+                    render_card(listing)
 
-        if checked_count:
-            st.info(f"{checked_count} listing(s) selected — click the **{tab_label}** tab to compare.")
+        # back to top button at the bottom of listings
+        st.markdown("&nbsp;")
+        if st.button("↑ Back to top", key="btn_top_main"):
+            scroll_to_top()
 
     # ── Tab 2: Comparison ─────────────────────────────────────────
     with tab_compare:
