@@ -1,4 +1,6 @@
 import time
+import csv
+from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 
@@ -106,15 +108,33 @@ def run():
         context.close()
         browser.close()
 
-        # remove duplicate listings by link
+        # deduplicate by link — first search label wins
         seen = set()
         unique = []
+        duplicate_count = 0
         for l in all_listings:
             if l["link"] not in seen:
                 seen.add(l["link"])
                 unique.append(l)
+            else:
+                duplicate_count += 1
 
-        print(f"\nDone. Total unique listings collected: {len(unique)}")
+        print(f"\nDone.")
+        print(f"  Total collected : {len(all_listings)}")
+        print(f"  Duplicates removed : {duplicate_count}")
+        print(f"  Unique listings : {len(unique)}")
+
+        # save to CSV for review
+        filename = f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        fields = ["search_label", "property_type", "price", "deposit",
+                  "monthly_rent", "address", "floor", "size", "description", "link", "photo"]
+        with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(unique)
+
+        print(f"\nSaved to: {filename}")
+        print("Open this file in Excel to review all listings.")
         return unique
 
 
