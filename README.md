@@ -80,6 +80,8 @@ This keeps the tool compliant — it looks like a real user, not a bot.
 
 ## Roadmap
 
+![Roadmap](hackerhouse-scraper-tool-roadmap.png)
+
 - [x] **Phase 0** — Environment setup (Python, Streamlit, Playwright, GitHub)
 - [x] **Phase 1** — Peter Pan scraper (semi-manual, extracts listing data)
 - [x] **Phase 2** — Streamlit UI (card view, photos, sidebar filters)
@@ -87,6 +89,8 @@ This keeps the tool compliant — it looks like a real user, not a bot.
 - [x] **Phase 4** — Add Naver 부동산 as second source
 - [x] **Phase 5** — Polish (sorting, filtering, multi-source merge, error handling)
 - [x] **Phase 6** — Deploy to Streamlit Cloud
+
+[Edit roadmap in Excalidraw](https://excalidraw.com/#json=bYefu3LKljs7rEiPNl1iy,QpDc0eqYJBhF0dMGLhooIA)
 
 ---
 
