@@ -209,6 +209,21 @@ def main():
     min_deposit = st.sidebar.number_input("Min deposit", min_value=0, value=0, step=100)
     max_deposit = st.sidebar.number_input("Max deposit", min_value=0, value=10000, step=100)
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Sort by**")
+    sort_option = st.sidebar.selectbox(
+        "Sort listings by",
+        [
+            "Default",
+            "Monthly rent — low to high",
+            "Monthly rent — high to low",
+            "Deposit — low to high",
+            "Deposit — high to low",
+            "Size — large to small",
+            "Size — small to large",
+        ]
+    )
+
     # ── Apply filters ────────────────────────────────────────────
     filtered = df.copy()
 
@@ -235,6 +250,26 @@ def main():
 
     filtered = filtered[filtered.apply(in_rent_range, axis=1)]
     filtered = filtered[filtered.apply(in_deposit_range, axis=1)]
+
+    # ── Apply sort ───────────────────────────────────────────────
+    if sort_option != "Default":
+        if "Monthly rent" in sort_option:
+            filtered["_sort"] = filtered["monthly_rent"].apply(parse_amount)
+            ascending = "low to high" in sort_option
+            filtered = filtered.sort_values("_sort", ascending=ascending, na_position="last")
+            filtered = filtered.drop(columns=["_sort"])
+        elif "Deposit" in sort_option:
+            filtered["_sort"] = filtered["deposit"].apply(parse_amount)
+            ascending = "low to high" in sort_option
+            filtered = filtered.sort_values("_sort", ascending=ascending, na_position="last")
+            filtered = filtered.drop(columns=["_sort"])
+        elif "Size" in sort_option:
+            filtered["_sort"] = filtered["size"].apply(
+                lambda x: parse_amount(str(x).replace("m2","").replace("m²","").replace("㎡",""))
+            )
+            ascending = "small to large" in sort_option
+            filtered = filtered.sort_values("_sort", ascending=ascending, na_position="last")
+            filtered = filtered.drop(columns=["_sort"])
 
     if filtered.empty:
         st.info("No listings match your filters.")
