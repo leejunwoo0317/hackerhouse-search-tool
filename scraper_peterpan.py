@@ -46,6 +46,7 @@ def extract_listings(page, search_label=""):
 
             listings.append({
                 "search_label": search_label,
+                "source": "peterpan",
                 "property_type": property_type,
                 "price": price,
                 "deposit": deposit,
@@ -126,7 +127,7 @@ def run():
 
         # save to CSV for review
         filename = f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        fields = ["search_label", "property_type", "price", "deposit",
+        fields = ["search_label", "source", "property_type", "price", "deposit",
                   "monthly_rent", "address", "floor", "size", "description", "link", "photo"]
         with open(filename, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=fields)

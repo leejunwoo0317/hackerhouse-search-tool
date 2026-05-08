@@ -47,26 +47,43 @@ def inject_back_to_top():
 
 
 def load_data():
-    """Load CSV — from sidebar uploader first, then latest local file."""
-    uploaded = st.sidebar.file_uploader(
-        "Upload results CSV", type="csv", help="Export from scraper_peterpan.py"
+    """Load CSV(s) — from sidebar uploader first, then all local files merged."""
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload results CSV(s)", type="csv",
+        accept_multiple_files=True,
+        help="Upload CSVs from scraper_peterpan.py or scraper_naver.py"
     )
-    if uploaded:
-        df = pd.read_csv(uploaded, encoding="utf-8-sig")
-        return df, uploaded.name
+    if uploaded_files:
+        dfs = [pd.read_csv(f, encoding="utf-8-sig") for f in uploaded_files]
+        df = pd.concat(dfs, ignore_index=True)
+        names = ", ".join(f.name for f in uploaded_files)
+        return df, names
 
-    # fallback: load latest local CSV (when running on your own machine)
+    # fallback: merge all local result CSVs
     files = sorted(glob.glob("results_*.csv"), reverse=True)
     if files:
-        df = pd.read_csv(files[0], encoding="utf-8-sig")
-        return df, files[0]
+        dfs = [pd.read_csv(f, encoding="utf-8-sig") for f in files]
+        df = pd.concat(dfs, ignore_index=True)
+        return df, f"{len(files)} local file(s)"
 
     return None, None
 
 
 def parse_amount(value):
     try:
-        return int(str(value).replace("만원", "").replace(",", "").strip())
+        s = str(value).replace(",", "").strip()
+        if not s or s in ("nan", "None"):
+            return None
+        total = 0
+        if "억" in s:
+            parts = s.split("억")
+            total += int(parts[0].strip()) * 10000
+            rest = parts[1].replace("만원", "").replace("만", "").strip()
+            if rest:
+                total += int(rest)
+        else:
+            total = int(s.replace("만원", "").replace("만", "").strip())
+        return total
     except Exception:
         return None
 
@@ -91,7 +108,9 @@ def render_card(listing):
         f"{listing.get('floor', '')}  ·  "
         f"{listing.get('size', '')}"
     )
-    st.caption(f"Area: {listing.get('search_label', '')}")
+    source = listing.get("source", "")
+    source_label = {"peterpan": "Peter Pan", "naver": "Naver"}.get(source, source)
+    st.caption(f"[{source_label}]  Area: {listing.get('search_label', '')}")
 
     if pd.notna(listing.get("description")) and listing["description"]:
         st.caption(listing["description"][:80])
@@ -99,7 +118,7 @@ def render_card(listing):
     if pd.notna(listing.get("link")) and listing["link"]:
         st.markdown(f"[View listing →]({listing['link']})")
 
-    key = f"compare_{listing['link']}"
+    key = f"compare_{listing['link']}|{listing.get('address','')}|{listing.get('price','')}"
     checked = st.checkbox("Compare", key=key)
     st.markdown("---")
     return checked
@@ -117,6 +136,7 @@ def render_comparison(selected):
         ("Floor",         "floor"),
         ("Size",          "size"),
         ("Area (search)", "search_label"),
+        ("Source",        "source"),
     ]
 
     photo_cols = st.columns(len(selected))
@@ -186,10 +206,28 @@ def main():
         st.code("python scraper_peterpan.py")
         return
 
+    # fill source column for older CSVs that don't have it
+    if "source" not in df.columns:
+        df["source"] = "peterpan"
+
+    # deduplicate: peterpan by link, naver by address+price
+    pp = df[df["source"] != "naver"].drop_duplicates(subset=["link"])
+    nv = df[df["source"] == "naver"].drop_duplicates(subset=["address", "price"])
+    df = pd.concat([pp, nv], ignore_index=True)
+
     st.caption(f"Loaded from: {filename}  |  Total listings: {len(df)}")
 
     # ── Sidebar filters ──────────────────────────────────────────
     st.sidebar.header("Filters")
+
+    sources = sorted(df["source"].dropna().unique().tolist())
+    source_display = {"peterpan": "Peter Pan", "naver": "Naver"}
+    selected_sources = st.sidebar.multiselect(
+        "Source",
+        sources,
+        default=sources,
+        format_func=lambda x: source_display.get(x, x)
+    )
 
     areas = sorted(df["search_label"].dropna().unique().tolist())
     selected_areas = st.sidebar.multiselect("Area (search label)", areas, default=areas)
@@ -206,8 +244,8 @@ def main():
     max_rent = st.sidebar.number_input("Max rent", min_value=0, value=500, step=10)
 
     st.sidebar.markdown("**Deposit range (만원)**")
-    min_deposit = st.sidebar.number_input("Min deposit", min_value=0, value=0, step=100)
-    max_deposit = st.sidebar.number_input("Max deposit", min_value=0, value=10000, step=100)
+    min_deposit = st.sidebar.number_input("Min deposit", min_value=0, value=0, step=1000)
+    max_deposit = st.sidebar.number_input("Max deposit", min_value=0, value=100000, step=1000)
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Sort by**")
@@ -227,6 +265,8 @@ def main():
     # ── Apply filters ────────────────────────────────────────────
     filtered = df.copy()
 
+    if selected_sources:
+        filtered = filtered[filtered["source"].isin(selected_sources)]
     if selected_areas:
         filtered = filtered[filtered["search_label"].isin(selected_areas)]
     if selected_types:
@@ -278,7 +318,7 @@ def main():
     # ── Collect currently selected items ─────────────────────────
     selected_for_compare = []
     for _, listing in filtered.iterrows():
-        key = f"compare_{listing['link']}"
+        key = f"compare_{listing['link']}|{listing.get('address','')}|{listing.get('price','')}"
         if st.session_state.get(key):
             selected_for_compare.append(listing)
 
