@@ -18,7 +18,7 @@ that respects each site's terms of service.
 
 ## Live App
 
-Deployed on Streamlit Cloud: [hackerhouse-search-tool.streamlit.app](https://hackerhouse-search-tool.streamlit.app)
+Deployed on Streamlit Cloud: [leejunwoo0317-hackerhouse-search-tool.streamlit.app](https://leejunwoo0317-hackerhouse-search-tool.streamlit.app)
 
 Upload a CSV exported from the scraper to browse and compare listings.
 
