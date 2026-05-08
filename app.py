@@ -201,14 +201,26 @@ def main():
     df, filename = load_data()
 
     if df is None:
-        st.info("Upload a results CSV file using the sidebar to get started.")
-        st.markdown("**If you are running locally:** generate a CSV first by running the scraper:")
+        st.info("Upload a results CSV using the sidebar, or run a scraper locally to generate one.")
+        st.markdown("**Peter Pan** (빌라, 아파트, 원룸)")
         st.code("python scraper_peterpan.py")
+        st.markdown("**Naver 부동산** (아파트 위주)")
+        st.code("python scraper_naver.py")
+        st.markdown("Then upload the resulting `results_*.csv` file using the sidebar.")
+        return
+
+    required = {"search_label", "property_type", "price", "address", "link"}
+    missing = required - set(df.columns)
+    if missing:
+        st.error(f"CSV is missing required columns: {', '.join(sorted(missing))}")
         return
 
     # fill source column for older CSVs that don't have it
     if "source" not in df.columns:
         df["source"] = "peterpan"
+    for col in ["deposit", "monthly_rent", "floor", "size", "description", "photo"]:
+        if col not in df.columns:
+            df[col] = ""
 
     # deduplicate: peterpan by link, naver by address+price
     pp = df[df["source"] != "naver"].drop_duplicates(subset=["link"])
